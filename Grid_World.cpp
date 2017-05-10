@@ -9,102 +9,40 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <random>
-#include <iomanip>
 #include <cmath>
-#include "Classes.h"
+#include <fstream>
+#include <string>
+#include "Classes.cpp"
 
 using namespace std;
 
 int main() {
-	srand(time(NULL));
-	int n = 20;
-	int iter = 1000;
-	int sr = 30;
-	float *info1, *info2, *info3;
-	FILE *learning; 
-	int min;
-	char c;
-	bool grid_rep;
-	int a_size;
+	int wt;
 
-	cout << "Do you want a grid representation (Y/N)? ";
-	while (1) {
-		cin >> c;
-		if (c == 'Y') {
-			grid_rep = true;
-			break;
-		} else if (c == 'N') {
-			grid_rep = false;
-			break;
-		} else {
-			cout << "Invalid Input. ";
-		}
-	}
-	cout << "How large (6-15) do you want the square grid? ";
-	cin >> n;
-	cout << "How many Statisical Runs (1-30)? ";
-	cin >> sr;
+	Agent bug;
+	bug.body.x = 0;		bug.body.y = 0;
+	bug.theta = 0;			bug.omega = 0;
+	bug.energy = 100;		bug.v = 0;
+	bug.alpha = 10;		bug.L = 1.5;
 
-	info1 = new float[iter]();
-	info2 = new float[iter]();
-	info3 = new float[iter]();
+	neural_network NN; 
+	NN.setup(5,5,3);
 
-	min = 2*n-10;
+	NN.set_in_min_max(0,6);				//Left Sensor
+	NN.set_in_min_max(0,6);				//Body Sensor
+	NN.set_in_min_max(0,6);				//Right Sensor
+	NN.set_in_min_max(-15,15);			//Omega
+	NN.set_in_min_max(0,120);			//Energy
+	NN.set_out_min_max(-3,3);				//Velocity Change
+	NN.set_out_min_max(-15.0,15.0);		//Omega Change
+	NN.set_out_min_max(0,1);				//Move:eat ratio
+	wt = NN.get_number_of_weights();
+	cout << wt << endl;
 
-	int size[2] = {n,n};
-	int goal[2] = {n-2,n-2};
-	if (grid_rep) {
-		a_size = size[0]*size[1];	
-	} else {
-		a_size = 9;
-	}
-	GridWorld grid(size[0],size[1],goal[0],goal[1]);
-	grid.set_representation(grid_rep);
-	Agent Dexter(a_size, 0.1, 0.1, 0.9, &grid);
-	Agent Jeff  (size[0]*size[1], 0.01, 0.1, 0.9, &grid);
-	Agent Bobby (size[0]*size[1], 0.0, 0.1, 0.9, &grid);
-	if (grid_rep) {
-		Dexter.set_state(2*n+2);
-		Jeff.set_state(2*n+2);
-		Bobby.set_state(2*n+2);
-	} else {
-		Dexter.set_state(0);
-		Jeff.set_state(0);
-		Bobby.set_state(0);
-	}
-
-	for (int j = 0; j < sr; j++) {
-		for (int i = 0; i < 1000; i++) {
-			info1[i] += Dexter.action();
-			info2[i] += Jeff.action();
-			info3[i] += Bobby.action();
-			if (grid_rep) {
-				Dexter.TestE();
-			} else {
-				Dexter.TestG();
-			}
-		}
-		Dexter.TestD();
-		Dexter.reset();
-		Jeff.reset();
-		Bobby.reset();
-	}
-	if (grid_rep) Dexter.TestF(min,info1[999]/sr);
-
-	learning = fopen("Learning.txt", "w+");
-	for (int i = 0; i < 1000; i++) {
-		fprintf(learning, "%d\t%.3f\t%.3f\t%.3f\n", i, info1[i]/sr, info2[i]/sr, info3[i]/sr);
-	}
-
-	Dexter.display();
-
-	fclose(learning);
-	grid.clear();
-	Dexter.clear();
-	Jeff.clear();
-	Bobby.clear();
-	delete info1;
-	delete info2;
-	delete info3;
+	World w;
+	// for (int i = 0; i < 100; i++) {
+		w.run(bug,false);
+	// }
+	
 	return 0;
 }

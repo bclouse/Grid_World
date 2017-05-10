@@ -6,69 +6,121 @@
 #include <random>
 #include <iomanip>
 #include <cmath>
+#include "LY_NN.h"
 
 using namespace std;
 
-#define ZERO_TO_ONE (double)rand()/RAND_MAX
+#define ZERO_TO_ONE ((double)rand()/RAND_MAX)
+#define RADIANS ((double)3.1415926535897/180)
+#define TIME 0.2
+#define SIZE 500
+#define ASSERT true
+#define STICK 1
+#define DURATION 350
+#define SPACING 2.5
+#define ENERGY_MOVE 1.2
+#define ENERGY_ROTATE 0.05
+#define EAT_AMOUNT 1
 
 #ifndef CLASSES_H
 #define CLASSES_H
 
-//==============================
-//	GridWorld Class
+//===============================
+//	Policy Class
 //===============================
 
-class GridWorld {
+class Policy {
 private:
-	int sizeX, sizeY;
-	int goalX, goalY;
-	int agentX, agentY;
-	int goal_state;
-	int **state_list;
+	vector<double> weights;
+	int w;
+	int change;
+	friend class Evolution;
 public:
-	GridWorld(int, int, int, int);
-	int new_state(int,int);
-	int get_reward(int);
-	void display(int);
-	bool found_goal(int);
-	void set_representation(bool);
-	void clear();
+	void init(int);
+	void mutate();
 };
 
-//*==============================
-//	Agent Class
+//===============================
+//	EA Class
 //===============================
 
-class Agent{
+class Evolution {
 private:
-	float **Q_Table;
-	GridWorld *world;
-	double e, a, g;	//Epsilon, Alpha, and Gamma
-	int size;
-	int state;
-	int time;
-	int origin;
+	vector<Policy> population;	//[-1,1]
+	int p;			//Number of policies
+	int change; 	//how many weights to change per mutation
 public:
-	Agent(int,double,double,double,GridWorld*);
-	void set_state(int);
-	void update(int,int);
-	int decide();
-	int action();
-	void clear();
+	void init(int,int);
+	void execute(vector<double>);	//A combination of downselecting and repopulating, will also call the mutate function
+	void mutate(int);
+	int population_size();
+	vector<double> get_policy(int);// {return population[n]};
+
+};
+
+//===============================
+// Node Struct
+//===============================
+
+struct Node {
+	double x, y;
+};
+
+//===============================
+// Agent Struct
+//===============================
+
+struct Agent {
+	Node body, l_sensor, r_sensor;
+	double v;
+	double theta, omega;
+	double energy;
+	double alpha;
+	double L;
+};
+
+//===============================
+// World Class
+//===============================
+
+class World {
+private:
+	double **food, **original;
+	double gx, gy;
+	int policies;
+	// double x, y;
+	// double energy;
+	// double theta, omega;
+	// double v;
+	double stray;
+	int size;
+	vector<double> fitness;
+	vector<double> input;
+	neural_network NN;
+	Evolution EA;
+	Agent a;
+public:
+	World();
+	~World();
+	void init(neural_network, Evolution);
+	bool simulate(double,double,double);
+	void reset_world();
+	void end();
+	void run(Agent,bool);
+	double sense_world(Node);
 	void display();
-	void reset();
-	void TestD();
-	void TestE();
-	void TestF(int,float);
-	void TestG();
-};//*/
+	void update_input();
+	void update_stray();
+	bool found_goal();
+};
 
 //===============================
 //	Functions
 //===============================
 
-void state2coord(int*,int,int);
-int coord2state(int,int,int);
-int rand_maximum(float*, int);
+double dist(double,double,double,double);
+string int2str(int,int);
+double confine(double,bool);
+Agent update_nodes(Agent,int);		//Nodes are the sensor locations
 
 #endif
