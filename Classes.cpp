@@ -4,8 +4,8 @@
 //	Policy Class
 //===============================================
 
-void Policy::init(int wt) {
-	w = wt;
+void Policy::init(int size) {
+	w = size;
 	weights.clear();
 	for (int i = 0; i < w; i++) {
 		weights.push_back(ZERO_TO_ONE*2-1);
@@ -34,7 +34,7 @@ void Policy::mutate() {
 //	Evolution Class
 //===============================================
 
-void Evolution::init (int size, int pop) {
+void Evolution::init (int pop, int size) {
 	p = pop;
 	change = (int)sqrt(size);
 	Policy dummy;
@@ -104,6 +104,7 @@ World::World() {
 		count++;
 	}
 	size = sqrt(count);
+	printf("\nWorld is %dx%d\n\n",size,size);
 	rewind(fp);
 
 	original = new double*[size];
@@ -127,12 +128,15 @@ void World::run(Agent original, bool info) {
 	double distance, min;
 	bool warp;
 	float t;
+	int state;
 	string num;
+	vector<double> wt;
 	char str[] = "assests//path000.txt\0";	//13,14,15
 
-
+	fitness.clear();
 	for (int i = 0; i < policies; i++) {
 		t = 0;
+		// cout << "run()" << endl;
 		a = update_nodes(original,size);
 		update_stray();
 		distance = dist(a.body.x,a.body.y,gx,gy);
@@ -151,22 +155,30 @@ void World::run(Agent original, bool info) {
 		}
 
 		do {
-			update_stray();
 			update_input();
 			NN.set_vector_input(input);
-			NN.set_weights(EA.get_policy(i),ASSERT);
+			wt = EA.get_policy(i);
+			// printf("Weight size %d\n", (int) wt.size());
+			NN.set_weights(wt,ASSERT);
 			NN.execute();
 
-			u = NN.get_output(0);
-			w = NN.get_output(1);
-			e = NN.get_output(2);
+			// u = NN.get_output(0);
+			// w = NN.get_output(1);
+			// e = NN.get_output(2);
+			u = 3;
+			w = NN.get_output(0);
+			e = NN.get_output(1);
+
+			// printf("OUTPUTS: %f, %f, %f\n\n", u,w,e);
 
 			warp = simulate(u,w,e);
+			// cout << "after simulate" << endl;
+			// disp_Agent(a,false);
 			if (info) {
 				if (warp) {
 					fprintf(path, "\n");
 				}
-				fprintf(path, "%6f\t%6f\t%6f\t%6f\n", a.body.x, a.body.y, stray, a.energy);
+				fprintf(path, "%6f\t%6f\t%6f\t%6f\t%6f\n", a.body.x, a.body.y, stray, a.energy, e);
 			}
 
 			distance = dist(a.body.x,a.body.y,gx,gy);
@@ -175,11 +187,28 @@ void World::run(Agent original, bool info) {
 			}
 			t += TIME;
 		} while (!found_goal() && t < DURATION && a.energy >= 0);
-		if (info) fclose(path);
-		//fitness
-		//EA stuff
+		if (found_goal()) {
+			fitness.push_back(2*DURATION-t);
+			state = 2;
+		} else if (t >= DURATION) {
+			fitness.push_back(t);
+			state = 1;
+		} else {
+			fitness.push_back(t);
+			state = 0;
+		}
+		if (info) {
+			fclose(path);
+			printf("%3d) ", i+1);
+			switch (state) {
+				case 0: cout << "DIED   "; break;
+				case 1: cout << "INSIDE "; break;
+				case 2: cout << "FOUND  "; break;
+			}
+			cout << fitness[i] << endl;
+		}
 	}
-	
+	EA.execute(fitness);
 }
 
 // void World::run(Agent a_) {
@@ -211,6 +240,7 @@ void World::run(Agent original, bool info) {
 void World::init(neural_network nn, Evolution ea) {
 	NN = nn;
 	EA = ea;
+	gx = size/2; gy = gx;
 	policies = EA.population_size();
 }
 
@@ -223,12 +253,13 @@ bool World::simulate(double u, double w, double e) {
 
 	double energy_spend = eat+(abs(a.v)*ENERGY_MOVE + abs(a.omega)*ENERGY_ROTATE)*TIME;
 	bool warp = false;
+	// printf("Input: %f, %f, %f\n", u, w, e);
 	// cout << energy_spend << endl;
 
 	a.body.x += a.v*cos(a.theta*RADIANS)*TIME;
 	a.body.y += a.v*sin(a.theta*RADIANS)*TIME;
 	a.v += (u*e-a.v)*TIME/STICK;
-	a.theta += confine(a.omega*TIME,true);
+	a.theta += a.omega*TIME;
 	a.omega += (w*e-a.omega)*TIME/STICK;
 	a.energy -= energy_spend;
 
@@ -242,6 +273,10 @@ bool World::simulate(double u, double w, double e) {
 		else						a.body.y -= size;
 		warp = true;
 	}
+
+	// printf("Before: %6.3f\tAfter: %6.3f\n", a.theta, confine(a.theta,true));
+	a.theta = confine(a.theta,true);
+
 	if (a.energy > 120) a.energy = 120;
 	if (ASSERT) {
 		assert(a.body.x >= 0 && a.body.x < size);
@@ -280,7 +315,6 @@ double World::sense_world(Node n) {
 		cout << "SOMEHOW STILL OUT OF BOUNDS" << endl;
 		return 0;
 	}
-	cout << food[i][j] << ' ';
 
 	return food[i][j];
 }
@@ -299,7 +333,6 @@ void World::update_input() {
 	a = update_nodes(a,size);
 	update_stray();
 
-	cout << '\t';
 	input.push_back(sense_world(a.l_sensor));
 	input.push_back(sense_world(a.body));
 	input.push_back(sense_world(a.r_sensor));
@@ -307,6 +340,7 @@ void World::update_input() {
 	input.push_back(a.energy);
 	input.push_back(stray);
 
+	// printf("INPUT VECTOR: ");
 	// for (int i = 0; i< input.size(); i++) {
 	// 	printf("%4.2f", input[i]);
 	// 	if (i != input.size()-1)	printf("\t");
@@ -317,11 +351,13 @@ void World::update_input() {
 
 void World::update_stray() {
 	double beta = atan((a.body.y-gy)/(a.body.x-gx))/RADIANS;
+	// printf("Beta: %f\n", beta);
 	if (a.body.x > gx) {
 		beta += 180;
 	} else if (a.body.x < gx && a.body.y > gx) {
 		beta += 360;
 	}
+	// printf("Confine: %f\n", confine(beta-a.theta,false));
 	stray = abs(confine(beta-a.theta,false));
 }
 
@@ -373,6 +409,7 @@ double confine(double angle, bool full_rotation) {
 }
 
 Agent update_nodes(Agent a, int size) {
+	// disp_Agent(a,false);
 	double aL = confine(a.theta + a.alpha,true);		//Angle to the left node
 	double aR = confine(a.theta - a.alpha,true);		//Angle to the right node
 	// cout << aL << ", " << aR << endl;
@@ -405,3 +442,13 @@ Agent update_nodes(Agent a, int size) {
 
 	return a;
 }
+
+void disp_Agent(Agent a, bool sensor_data) {
+	printf("Agent is located at (%6.3f, %6.3f)\n", a.body.x, a.body.y);
+	if (sensor_data) {
+		printf("\tLeft sensor  (%6.3f, %6.3f)", a.l_sensor.x, a.l_sensor.y);
+		printf("\tRight sensor (%6.3f, %6.3f)", a.r_sensor.x, a.r_sensor.y);
+	}
+	printf("Speed is %6.3f, theta is %6.3f, omega is %6.3f, and energy is %6.3f\n\n", a.v, a.theta, a.omega, a.energy);
+}
+

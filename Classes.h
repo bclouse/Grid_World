@@ -122,5 +122,6 @@ double dist(double,double,double,double);
 string int2str(int,int);
 double confine(double,bool);
 Agent update_nodes(Agent,int);		//Nodes are the sensor locations
+void disp_Agent(Agent,bool);
 
 #endif
